@@ -1,192 +1,154 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>مشاهدة وبحث</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Video Web App</title>
 <style>
 *{box-sizing:border-box}
-:root{--bg:#0b0f16;--panel:#121925;--panel2:#192233;--text:#f5f7fb;--muted:#9da9ba;--accent:#ff3158;--line:#263244}
-body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif}
-button,input{font:inherit}
-button{cursor:pointer;border:0}
-.top{position:sticky;top:0;z-index:20;background:rgba(11,15,22,.94);backdrop-filter:blur(18px);border-bottom:1px solid var(--line);padding:12px}
-.bar{max-width:1050px;margin:auto;display:flex;gap:10px;align-items:center}
-.logo{font-weight:900;font-size:19px;white-space:nowrap}.logo span{color:var(--accent)}
-.search{flex:1;display:flex;background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
-.search input{width:100%;background:transparent;color:var(--text);border:0;outline:0;padding:12px 14px}
-.search button{width:52px;background:var(--accent);color:white}
-.container{max-width:1050px;margin:auto;padding:18px 12px 90px}
-.hero{background:linear-gradient(135deg,#171f2e,#111723);border:1px solid var(--line);border-radius:24px;padding:24px;margin-bottom:18px}
-.hero h1{margin:0 0 8px;font-size:26px}.hero p{color:var(--muted);margin:0}
-.status{margin:14px 0;color:var(--muted);font-size:14px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:15px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;transition:.2s}
-.card:hover{transform:translateY(-2px);border-color:#3b4b63}
-.thumb{aspect-ratio:16/9;background:#070a0f;position:relative}
-.thumb img{width:100%;height:100%;object-fit:cover}
-.play{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.75);width:42px;height:42px;border-radius:50%;color:#fff}
-.info{padding:12px}.title{font-weight:800;line-height:1.5}.meta{color:var(--muted);font-size:13px;margin-top:7px}
-.empty{text-align:center;padding:55px 15px;color:var(--muted)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.84);z-index:50;display:none;align-items:center;justify-content:center;padding:12px}
-.playerbox{width:min(950px,100%);background:var(--panel);border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 20px 80px #000}
-.video-wrap{background:#000;position:relative}.video-wrap video{display:block;width:100%;max-height:65vh;background:#000}
-.close{position:absolute;top:10px;left:10px;z-index:3;background:rgba(0,0,0,.65);color:#fff;border-radius:10px;padding:9px 13px}
-.playerinfo{padding:15px}.playerinfo h2{font-size:18px;margin:0 0 12px}
-.controls{display:flex;gap:8px;flex-wrap:wrap}
-.btn{padding:10px 13px;border-radius:12px;background:var(--panel2);color:#fff;border:1px solid var(--line)}
-.btn.primary{background:var(--accent);border-color:var(--accent)}
-.quality{padding:10px 12px;border-radius:12px;background:var(--panel2);color:white;border:1px solid var(--line)}
-.history{margin-top:25px}.history h2{font-size:18px}
-@media(max-width:600px){.logo{display:none}.grid{grid-template-columns:1fr 1fr;gap:10px}.title{font-size:14px}.info{padding:9px}.hero{padding:18px}.hero h1{font-size:22px}}
-@media(max-width:390px){.grid{grid-template-columns:1fr}}
+body{margin:0;font-family:Arial,sans-serif;background:#0b0f14;color:#fff}
+header{padding:20px;text-align:center;border-bottom:1px solid #202733}
+h1{margin:0 0 15px;font-size:25px}
+.search{display:flex;max-width:700px;margin:auto;gap:8px}
+.search input{flex:1;padding:14px;border-radius:12px;border:1px solid #303947;background:#151b24;color:#fff;font-size:16px}
+button{border:0;border-radius:11px;padding:12px 18px;background:#2563eb;color:#fff;cursor:pointer;font-weight:bold}
+main{max-width:1100px;margin:25px auto;padding:0 15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+.card{background:#121821;border:1px solid #222b38;border-radius:16px;overflow:hidden;cursor:pointer}
+.card img{width:100%;aspect-ratio:16/9;object-fit:cover}
+.card-body{padding:13px}
+.title{font-weight:bold;line-height:1.5}
+.channel{color:#9ca7b5;margin-top:8px;font-size:13px}
+.empty{text-align:center;color:#8993a1;padding:50px}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:5;padding:18px;overflow:auto}
+.modal-box{max-width:900px;margin:30px auto;background:#111820;border-radius:18px;padding:18px}
+.close{float:left;background:#333}
+video{width:100%;max-height:65vh;background:#000;border-radius:12px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+select{background:#18202b;color:#fff;border:1px solid #303947;padding:11px;border-radius:10px}
+.note{font-size:12px;color:#929dac;margin-top:12px}
 </style>
 </head>
 <body>
-<header class="top">
- <div class="bar">
-  <div class="logo">مشاهدة<span>+</span></div>
-  <form class="search" onsubmit="doSearch(event)">
-   <input id="q" placeholder="ابحث عن فيديو..." autocomplete="off">
-   <button>⌕</button>
-  </form>
- </div>
+<header>
+<h1>مشغل الفيديو</h1>
+<div class="search">
+<input id="q" placeholder="ابحث عن فيديو...">
+<button onclick="searchVideos()">بحث</button>
+</div>
 </header>
 
-<main class="container">
- <section class="hero">
-  <h1>ابحث وشاهد بسهولة</h1>
-  <p>مشغل خفيف، جودة قابلة للتغيير، وخيار تحميل الفيديو أو الصوت.</p>
- </section>
- <div id="status" class="status">اكتب كلمة للبحث عن الفيديوهات.</div>
- <section id="results" class="grid"></section>
- <section class="history">
-  <h2>🕘 آخر المشاهدات</h2>
-  <div id="history" class="grid"></div>
- </section>
+<main>
+<div id="results" class="grid"></div>
+<div id="empty" class="empty">ابحث عن فيديو للبدء</div>
 </main>
 
 <div id="modal" class="modal">
- <div class="playerbox">
-  <div class="video-wrap">
-   <button class="close" onclick="closePlayer()">إغلاق ✕</button>
-   <video id="player" controls playsinline></video>
-  </div>
-  <div class="playerinfo">
-   <h2 id="playingTitle"></h2>
-   <div class="controls">
-    <select id="quality" class="quality" onchange="changeQuality()"></select>
-    <button class="btn primary" onclick="startDownload('video')">🎬 تحميل فيديو</button>
-    <button class="btn" onclick="startDownload('audio')">🎵 صوت فقط</button>
-   </div>
-   <div id="playerStatus" class="status"></div>
-  </div>
- </div>
+<div class="modal-box">
+<button class="close" onclick="closePlayer()">إغلاق</button>
+<h2 id="videoTitle"></h2>
+<video id="player" controls playsinline></video>
+<div class="controls">
+<select id="quality" onchange="changeQuality()"></select>
+<button onclick="startDownload('video')">تحميل فيديو</button>
+<button onclick="startDownload('audio')">تحميل صوت</button>
+</div>
+<div class="note">روابط البث المباشر مؤقتة ويتم استخراجها عند الطلب.</div>
+</div>
 </div>
 
 <script>
-let currentId=null,currentTitle="",currentFormats=[];
+let currentVideo=null;
+let videoData=null;
 
-const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
-
-function duration(s){
- if(!s)return "";
- s=Number(s);let h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
- return h?`${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`:`${m}:${String(x).padStart(2,"0")}`;
+function esc(s){
+ return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 }
 
-async function doSearch(e){
- e.preventDefault();
+async function searchVideos(){
  const q=document.getElementById("q").value.trim();
  if(!q)return;
- const status=document.getElementById("status"), box=document.getElementById("results");
- status.textContent="جاري البحث...";
- box.innerHTML="";
+ const results=document.getElementById("results");
+ const empty=document.getElementById("empty");
+ empty.textContent="جاري البحث...";
+ empty.style.display="block";
+ results.innerHTML="";
  try{
-  const r=await fetch("/api/search?q="+encodeURIComponent(q));
-  const d=await r.json();
-  if(d.error)throw Error(d.error);
-  status.textContent=`تم العثور على ${d.items.length} نتيجة`;
-  box.innerHTML=d.items.map(v=>`
-   <article class="card" onclick='playVideo(${JSON.stringify(v.id)},${JSON.stringify(v.title)},${JSON.stringify(v.thumbnail||"")},${JSON.stringify(v.channel||"")})'>
-    <div class="thumb"><img loading="lazy" src="${esc(v.thumbnail)}"><button class="play">▶</button></div>
-    <div class="info"><div class="title">${esc(v.title)}</div><div class="meta">${esc(v.channel)} ${v.duration?"• "+duration(v.duration):""}</div></div>
-   </article>`).join("");
- }catch(err){status.textContent="حدث خطأ أثناء البحث: "+err.message}
+   const r=await fetch("/api/search?q="+encodeURIComponent(q));
+   const data=await r.json();
+   if(data.error)throw new Error(data.error);
+   empty.style.display=data.items.length?"none":"block";
+   if(!data.items.length){empty.textContent="لم يتم العثور على نتائج";return;}
+   results.innerHTML=data.items.map(v=>`
+    <div class="card" onclick="playVideo('${esc(v.id)}')">
+      <img src="${esc(v.thumbnail)}" loading="lazy">
+      <div class="card-body">
+        <div class="title">${esc(v.title)}</div>
+        <div class="channel">${esc(v.channel)}</div>
+      </div>
+    </div>`).join("");
+ }catch(e){
+   empty.textContent="حدث خطأ: "+e.message;
+ }
 }
 
-async function playVideo(id,title,thumbnail,uploader){
- currentId=id;currentTitle=title;
- document.getElementById("playingTitle").textContent=title;
- document.getElementById("playerStatus").textContent="جاري تجهيز الفيديو...";
- document.getElementById("modal").style.display="flex";
+async function playVideo(id){
+ currentVideo=id;
+ const modal=document.getElementById("modal");
+ const player=document.getElementById("player");
+ const quality=document.getElementById("quality");
+ document.getElementById("videoTitle").textContent="جاري التحميل...";
+ modal.style.display="block";
  try{
-  const r=await fetch("/api/video/"+encodeURIComponent(id));
-  const d=await r.json();
-  if(d.error)throw Error(d.error);
-  currentFormats=d.formats||[];
-  const player=document.getElementById("player");
-  player.src=d.stream_url||"";
-  buildQualityList();
-  document.getElementById("playerStatus").textContent="";
-  player.play().catch(()=>{});
-  saveHistory({id,title,thumbnail,uploader});
- }catch(err){document.getElementById("playerStatus").textContent="تعذر تشغيل الفيديو: "+err.message}
-}
-
-function buildQualityList(){
- const q=document.getElementById("quality");
- const map=new Map();
- currentFormats.forEach(f=>{if(f.quality&&!map.has(f.quality))map.set(f.quality,f)});
- const arr=[...map.values()].sort((a,b)=>b.quality-a.quality);
- q.innerHTML=arr.length?arr.map(f=>`<option value="${esc(f.format_id)}">${f.quality}p</option>`).join(""):"<option>تلقائي</option>";
+   const r=await fetch("/api/video/"+encodeURIComponent(id));
+   videoData=await r.json();
+   if(videoData.error)throw new Error(videoData.error);
+   document.getElementById("videoTitle").textContent=videoData.title||"الفيديو";
+   quality.innerHTML="";
+   const seen=new Set();
+   (videoData.formats||[]).slice().reverse().forEach(f=>{
+     if(!f.quality||seen.has(f.quality))return;
+     seen.add(f.quality);
+     const o=document.createElement("option");
+     o.value=f.url;
+     o.textContent=f.quality+"p"+(f.has_audio?"":" (فيديو فقط)");
+     quality.appendChild(o);
+   });
+   player.src=videoData.stream_url||"";
+   if(player.src)player.play().catch(()=>{});
+ }catch(e){
+   document.getElementById("videoTitle").textContent="تعذر تشغيل الفيديو";
+   alert(e.message);
+ }
 }
 
 function changeQuality(){
- const id=document.getElementById("quality").value;
- const f=currentFormats.find(x=>x.format_id===id);
- if(!f?.url)return;
- const p=document.getElementById("player");
- const time=p.currentTime;
- p.src=f.url;p.currentTime=time;p.play().catch(()=>{});
+ const url=document.getElementById("quality").value;
+ if(url)document.getElementById("player").src=url;
 }
 
 async function startDownload(type){
- if(!currentId)return;
- const s=document.getElementById("playerStatus");
- s.textContent=type==="audio"?"جاري تجهيز رابط الصوت...":"جاري تجهيز رابط الفيديو...";
+ if(!currentVideo)return;
  try{
-  const r=await fetch(`/api/download/${encodeURIComponent(currentId)}?type=${type}`);
-  const d=await r.json();
-  if(!d.download_url)throw Error(d.error||"تعذر استخراج الرابط");
-  const a=document.createElement("a");
-  a.href=d.download_url;a.target="_blank";
-  a.download=(d.title||"video")+"."+d.ext;
-  document.body.appendChild(a);a.click();a.remove();
-  s.textContent="تم إرسال الرابط إلى المتصفح.";
- }catch(err){s.textContent="تعذر التحميل: "+err.message}
+   const r=await fetch(`/api/download/${encodeURIComponent(currentVideo)}?type=${type}`);
+   const data=await r.json();
+   if(data.error)throw new Error(data.error);
+   if(!data.download_url)throw new Error("لم يتم الحصول على رابط التحميل");
+   window.open(data.download_url,"_blank");
+ }catch(e){
+   alert("تعذر التحميل: "+e.message);
+ }
 }
 
 function closePlayer(){
- const p=document.getElementById("player");p.pause();p.removeAttribute("src");p.load();
+ document.getElementById("player").pause();
+ document.getElementById("player").src="";
  document.getElementById("modal").style.display="none";
 }
-document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closePlayer()});
 
-function saveHistory(v){
- let h=JSON.parse(localStorage.getItem("watchHistory")||"[]");
- h=[v,...h.filter(x=>x.id!==v.id)].slice(0,8);
- localStorage.setItem("watchHistory",JSON.stringify(h));renderHistory();
-}
-function renderHistory(){
- const h=JSON.parse(localStorage.getItem("watchHistory")||"[]"),box=document.getElementById("history");
- box.innerHTML=h.length?h.map(v=>`
- <article class="card" onclick='playVideo(${JSON.stringify(v.id)},${JSON.stringify(v.title)},${JSON.stringify(v.thumbnail||"")},${JSON.stringify(v.uploader||"")})'>
- <div class="thumb"><img loading="lazy" src="${esc(v.thumbnail)}"><button class="play">▶</button></div>
- <div class="info"><div class="title">${esc(v.title)}</div><div class="meta">${esc(v.uploader)}</div></div>
- </article>`).join(""):'<div class="empty">لا توجد مشاهدات سابقة.</div>';
-}
-renderHistory();
+document.getElementById("q").addEventListener("keydown",e=>{
+ if(e.key==="Enter")searchVideos();
+});
 </script>
 </body>
 </html>
