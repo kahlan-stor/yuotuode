@@ -32,6 +32,7 @@ import threading
 import time
 import traceback
 import urllib.request
+import re
 from datetime import datetime
 
 from flask import Flask, jsonify, request, render_template_string
@@ -183,19 +184,31 @@ def save_message(chat_id, direction, text):
         c.close()
 
 def normalize(s):
-    return " ".join((s or "").strip().lower().split())
+    s = str(s or "").strip().casefold()
+    # توحيد بعض أشكال العربية حتى تعمل المطابقة بصورة أفضل.
+    s = s.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+    s = s.replace("ى", "ي").replace("ة", "ه")
+    return " ".join(s.split())
 
 def find_auto_reply(text):
     t = normalize(text)
+    if not t:
+        return None
+
     with db_lock:
         c = db()
-        rows = c.execute("SELECT * FROM replies WHERE enabled=1 ORDER BY id DESC").fetchall()
+        rows = c.execute(
+            "SELECT * FROM replies WHERE enabled=1 ORDER BY id DESC"
+        ).fetchall()
         c.close()
+
     for row in rows:
-        # الكلمات مفصولة بفواصل
-        for key in row["keywords"].split(","):
-            key = normalize(key)
-            if key and key in t:
+        for raw_key in str(row["keywords"] or "").split(","):
+            key = normalize(raw_key)
+            if not key:
+                continue
+            # يدعم العبارة داخل الرسالة: "وينك" -> "وينك يا رجل"
+            if key in t:
                 return row["response"]
     return None
 
@@ -317,57 +330,102 @@ async def whatsapp_loop():
             except Exception as e:
                 wa["last_error"] = "connection.update: " + str(e)
 
+        def _get(obj, key, default=None):
+            if isinstance(obj, dict):
+                return obj.get(key, default)
+            try:
+                return getattr(obj, key)
+            except Exception:
+                return default
+
+        def _as_dict(obj):
+            if isinstance(obj, dict):
+                return obj
+            try:
+                return vars(obj)
+            except Exception:
+                return {}
+
         async def on_message(update):
             """
-            WAeys/Baileys-style message event.
-            نحاول استخراج chat id والنص بطريقة مرنة لأن شكل event قد يختلف
-            بين الإصدارات.
+            استقبال الرسائل الجديدة ثم مطابقة قواعد الرد التلقائي.
+            يدعم أكثر من شكل للرسالة حتى لا يتوقف الرد بسبب اختلاف
+            تمثيل protobuf بين إصدارات WAeys.
             """
             try:
-                items = update.get("messages", []) if isinstance(update, dict) else []
+                event = _as_dict(update)
+                items = event.get("messages") or []
                 if isinstance(items, dict):
                     items = [items]
 
-                for msg in items:
-                    key = msg.get("key", {}) if isinstance(msg, dict) else {}
-                    if key.get("fromMe"):
+                for raw_msg in items:
+                    msg = _as_dict(raw_msg)
+                    key = _as_dict(_get(msg, "key", {}))
+
+                    # لا ترد على الرسائل التي أرسلها الحساب نفسه.
+                    if _get(key, "fromMe", False):
                         continue
 
-                    chat_id = key.get("remoteJid") or msg.get("chatId") or msg.get("from")
+                    chat_id = (
+                        _get(key, "remoteJid")
+                        or _get(msg, "chatId")
+                        or _get(msg, "from")
+                        or ""
+                    )
                     if not chat_id:
                         continue
 
-                    content = msg.get("message", {}) or {}
-                    text = (
+                    content = _as_dict(_get(msg, "message", {})) or {}
+
+                    # أشكال النص الشائعة في WhatsApp Web.
+                    ext = _as_dict(content.get("extendedTextMessage", {}))
+                    text_in = (
                         content.get("conversation")
-                        or content.get("extendedTextMessage", {}).get("text")
-                        or msg.get("body")
-                        or msg.get("text")
+                        or ext.get("text")
+                        or _as_dict(content.get("editedMessage", {})).get("message", {}).get("conversation")
+                        or _get(msg, "body", "")
+                        or _get(msg, "text", "")
                         or ""
                     )
-                    if not text:
+
+                    # بعض الإصدارات قد تعطي النص مباشرة داخل message كـ string.
+                    if not text_in and isinstance(_get(msg, "message", None), str):
+                        text_in = _get(msg, "message", "")
+
+                    text_in = str(text_in or "").strip()
+                    if not text_in:
                         continue
 
                     name = (
-                        msg.get("pushName")
-                        or msg.get("name")
+                        _get(msg, "pushName")
+                        or _get(msg, "name")
                         or chat_id
                     )
 
-                    save_chat(chat_id, name, text)
-                    save_message(chat_id, "in", text)
+                    save_chat(chat_id, name, text_in)
+                    save_message(chat_id, "in", text_in)
 
-                    reply = find_auto_reply(text)
-                    if reply and wa["status"] == "متصل":
-                        ok, err = await send_text(chat_id, reply)
-                        if ok:
-                            save_message(chat_id, "out", reply)
-                            save_chat(chat_id, name, reply)
-                        else:
-                            wa["last_error"] = err
+                    # ابحث عن أول قاعدة مطابقة.
+                    reply = find_auto_reply(text_in)
+                    if not reply:
+                        continue
+
+                    # أرسل حتى لو تغير نص الحالة لحظيًا؛ وجود socket هو
+                    # الاختبار العملي لجاهزية الإرسال.
+                    if not wa.get("socket"):
+                        wa["last_error"] = "وصلت رسالة لكن جلسة WhatsApp غير جاهزة للإرسال."
+                        continue
+
+                    ok, err = await send_text(chat_id, reply)
+                    if ok:
+                        save_message(chat_id, "out", reply)
+                        save_chat(chat_id, name, reply)
+                        wa["last_error"] = ""
+                    else:
+                        wa["last_error"] = "فشل الرد التلقائي: " + str(err)
 
             except Exception as e:
-                wa["last_error"] = "رسالة: " + str(e)
+                wa["last_error"] = "الرد التلقائي: " + str(e) + "\n" + traceback.format_exc()
 
         async def on_creds(update):
             try:
@@ -470,7 +528,7 @@ button.small{background:#17353d;color:#cbe8eb;border:0;border-radius:10px;paddin
 <header>
   <div>
     <h1>💬 KM WhatsApp Manager</h1>
-    <div class="sub">إدارة المحادثات والردود التلقائية — WhatsApp</div>
+    <div class="sub">إدارة المحادثات والردود التلقائية — إصدار V4</div>
   </div>
   <div id="status" class="badge">جارٍ التحضير...</div>
 </header>
@@ -623,6 +681,12 @@ def api_status():
         "wa_version": wa.get("wa_version"),
         "version_error": wa.get("version_error", "")
     })
+
+@app.get("/api/replies/test")
+def test_reply():
+    incoming = request.args.get("text", "")
+    reply = find_auto_reply(incoming)
+    return jsonify({"input": incoming, "reply": reply, "matched": bool(reply)})
 
 @app.get("/api/replies")
 def get_replies():

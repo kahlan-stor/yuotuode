@@ -42,3 +42,11 @@ REGULAR WHATSAPP VERSION:
 - The interface and QR instructions are now for the standard WhatsApp app.
 - The same linked-device QR mechanism is used; WhatsApp and WhatsApp Business use the same WhatsApp Web linking flow.
 - No Meta Business API token is required for this QR-based client.
+
+
+V4 AUTO-REPLY FIX:
+- Fixed the missing re import from V3.
+- More robust parsing of messages.upsert payloads and WhatsApp text formats.
+- Auto-reply no longer depends on the Arabic UI status string being exactly 'متصل'.
+- Arabic keyword normalization improved.
+- Added /api/replies/test for testing a rule without sending a WhatsApp message.
