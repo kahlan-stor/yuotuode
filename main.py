@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-KM WhatsApp Business Manager - ملف واحد
+KM WhatsApp Business Manager V3 - ملف واحد
 ========================================
 ربط غير رسمي عبر WhatsApp Web باستخدام WAeys + لوحة Flask.
 
@@ -31,6 +31,7 @@ import sqlite3
 import threading
 import time
 import traceback
+import urllib.request
 from datetime import datetime
 
 from flask import Flask, jsonify, request, render_template_string
@@ -124,6 +125,8 @@ wa = {
     "qr": None,
     "last_error": "",
     "started": False,
+    "wa_version": None,
+    "version_error": "",
 }
 
 def db():
@@ -225,6 +228,33 @@ def send_text_sync(chat_id, text):
     except Exception as e:
         return False, str(e)
 
+def fetch_latest_wa_web_version():
+    """
+    Fetch WhatsApp's current client_revision from web.whatsapp.com/sw.js.
+    Falls back to the current Baileys revision if WhatsApp cannot be reached.
+    """
+    fallback = [2, 3000, 1043857760]
+    try:
+        req = urllib.request.Request(
+            "https://web.whatsapp.com/sw.js",
+            headers={
+                "sec-fetch-site": "none",
+                "user-agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            data = response.read().decode("utf-8", errors="ignore")
+        match = re.search(r'\\"?client_revision\\"?\s*:\s*(\d+)', data)
+        if match:
+            return [2, 3000, int(match.group(1))]
+    except Exception as e:
+        wa["version_error"] = str(e)
+    return fallback
+
 async def whatsapp_loop():
     if not WAEYS_OK:
         wa["last_error"] = "WAeys غير مثبت: " + WAEYS_ERROR
@@ -235,14 +265,23 @@ async def whatsapp_loop():
         creds = load_creds() or init_auth_creds()
         auth = {"creds": creds, "keys": make_file_key_store()}
         config["auth"] = auth
-        # Use the browser identity shown in WAeys' own quick-start example.
-        # This avoids inheriting a stale/default browser fingerprint on the server.
+        # WhatsApp changes client_revision frequently. Do not rely only on
+        # the pinned revision inside the Python port; resolve the live revision
+        # from web.whatsapp.com/sw.js and fall back if unavailable.
+        live_version = fetch_latest_wa_web_version()
+        config["version"] = live_version
+        wa["wa_version"] = ".".join(map(str, live_version))
+
+        # Use a normal web-browser fingerprint. Avoid desktop/DARWIN/WIN32
+        # sub-platforms because those have recently caused immediate 428 closes.
         try:
-            config["browser"] = Browsers.macOS("Safari")
+            config["browser"] = Browsers.ubuntu("Chrome")
         except Exception:
             pass
+
         config["keepAliveIntervalMs"] = 30000
         config["connectTimeoutMs"] = 60000
+        config["defaultQueryTimeoutMs"] = 60000
         config["syncFullHistory"] = False
         config["markOnlineOnConnect"] = False
         config["enableAutoSessionRecreation"] = True
@@ -273,6 +312,8 @@ async def whatsapp_loop():
                     detail = update.get("lastDisconnect") or update.get("error")
                     if detail:
                         wa["last_error"] = "انقطع اتصال WhatsApp: " + str(detail)
+                    elif update:
+                        wa["last_error"] = "انقطع اتصال WhatsApp: " + repr(update)
             except Exception as e:
                 wa["last_error"] = "connection.update: " + str(e)
 
@@ -429,7 +470,7 @@ button.small{background:#17353d;color:#cbe8eb;border:0;border-radius:10px;paddin
 <header>
   <div>
     <h1>💬 KM WhatsApp Manager</h1>
-    <div class="sub">إدارة المحادثات والردود التلقائية</div>
+    <div class="sub">إدارة المحادثات والردود التلقائية — إصدار V3</div>
   </div>
   <div id="status" class="badge">جارٍ التحضير...</div>
 </header>
@@ -578,7 +619,9 @@ def api_status():
         "status": wa["status"],
         "qr": wa["qr"],
         "error": wa["last_error"],
-        "waeys": WAEYS_OK
+        "waeys": WAEYS_OK,
+        "wa_version": wa.get("wa_version"),
+        "version_error": wa.get("version_error", "")
     })
 
 @app.get("/api/replies")

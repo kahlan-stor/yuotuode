@@ -28,3 +28,11 @@ Railway:
 مهم: هذا عميل غير رسمي لـ WhatsApp Web وقد يخالف شروط WhatsApp أو يؤدي إلى تقييد الحساب. استخدمه على حسابك وعلى مسؤوليتك.
 
 يفضل إضافة Railway Volume لمسار الجلسة إذا أردت بقاء تسجيل الدخول بعد إعادة تشغيل الخدمة.
+
+
+V3 FIX:
+- Resolves the current WhatsApp Web client_revision dynamically from web.whatsapp.com/sw.js.
+- Falls back to revision 1043857760 if the live revision cannot be fetched.
+- Uses an Ubuntu/Chrome WEB_BROWSER-style fingerprint instead of a DARWIN desktop fingerprint.
+- Logs the resolved WhatsApp Web version in the API status.
+- This addresses immediate connection closes that occur after 'not logged in, attempting registration'.
