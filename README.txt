@@ -36,3 +36,9 @@ V3 FIX:
 - Uses an Ubuntu/Chrome WEB_BROWSER-style fingerprint instead of a DARWIN desktop fingerprint.
 - Logs the resolved WhatsApp Web version in the API status.
 - This addresses immediate connection closes that occur after 'not logged in, attempting registration'.
+
+
+REGULAR WHATSAPP VERSION:
+- The interface and QR instructions are now for the standard WhatsApp app.
+- The same linked-device QR mechanism is used; WhatsApp and WhatsApp Business use the same WhatsApp Web linking flow.
+- No Meta Business API token is required for this QR-based client.

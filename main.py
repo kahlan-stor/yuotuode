@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-KM WhatsApp Business Manager V3 - ملف واحد
+KM WhatsApp Manager V3 - ملف واحد
 ========================================
 ربط غير رسمي عبر WhatsApp Web باستخدام WAeys + لوحة Flask.
 
@@ -113,7 +113,7 @@ def make_file_key_store():
         if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
     return {"get": get, "set": set_keys, "clear": clear}
 
-APP_NAME = "KM WhatsApp Business Manager"
+APP_NAME = "KM WhatsApp Manager"
 DB_FILE = "km_whatsapp.db"
 
 app = Flask(__name__)
@@ -470,7 +470,7 @@ button.small{background:#17353d;color:#cbe8eb;border:0;border-radius:10px;paddin
 <header>
   <div>
     <h1>💬 KM WhatsApp Manager</h1>
-    <div class="sub">إدارة المحادثات والردود التلقائية — إصدار V3</div>
+    <div class="sub">إدارة المحادثات والردود التلقائية — WhatsApp</div>
   </div>
   <div id="status" class="badge">جارٍ التحضير...</div>
 </header>
@@ -484,8 +484,8 @@ button.small{background:#17353d;color:#cbe8eb;border:0;border-radius:10px;paddin
 
 <section id="connect" class="panel active">
  <div class="card center">
-   <h2>ربط WhatsApp Business</h2>
-   <p class="muted">افتح WhatsApp Business ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح QR الظاهر هنا.</p>
+   <h2>ربط WhatsApp</h2>
+   <p class="muted">افتح WhatsApp ← الأجهزة المرتبطة ← ربط جهاز، ثم امسح QR الظاهر هنا.</p>
    <div id="qrbox"><div class="muted">جاري تشغيل محرك الاتصال...</div></div>
    <div id="err" class="muted"></div>
  </div>
@@ -522,7 +522,7 @@ button.small{background:#17353d;color:#cbe8eb;border:0;border-radius:10px;paddin
 <section id="about" class="panel">
  <div class="card">
    <h2>عن الأداة</h2>
-   <p>لوحة محلية لإدارة حساب WhatsApp Business عبر عميل WhatsApp Web غير رسمي.</p>
+   <p>لوحة محلية لإدارة حساب WhatsApp عبر عميل WhatsApp Web غير رسمي.</p>
    <p class="muted">المطور: كهلان زيد الاشول</p>
    <p class="muted">تنبيه: الربط غير الرسمي قد يخالف شروط WhatsApp وقد يؤدي إلى تقييد الحساب.</p>
  </div>
@@ -548,7 +548,7 @@ async function status(){
    document.getElementById('err').textContent=x.error||'';
    const box=document.getElementById('qrbox');
    if(x.qr){
-      box.innerHTML='<img class="qr" src="'+x.qr+'"><div class="muted">امسح الرمز من WhatsApp Business</div>';
+      box.innerHTML='<img class="qr" src="'+x.qr+'"><div class="muted">امسح الرمز من WhatsApp</div>';
    }else if(x.status==='متصل'){
       box.innerHTML='<div style="font-size:70px">✅</div><h3>تم الاتصال بنجاح</h3><div class="muted">لن تحتاج لمسح QR مرة أخرى إذا بقيت الجلسة محفوظة.</div>';
    }else{
