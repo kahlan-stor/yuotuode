@@ -1,5 +1,5 @@
-Flask
-qrcode
-Pillow
-waeys
-gunicorn
+Flask>=3.0,<4
+qrcode>=7.4,<9
+Pillow>=10,<13
+waeys==0.1.3
+gunicorn>=23,<24

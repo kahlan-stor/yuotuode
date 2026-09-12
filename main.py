@@ -41,38 +41,76 @@ try:
 except Exception:
     qrcode = None
 
-# WAeys is loaded lazily so Gunicorn can boot the web UI even if the
-# WhatsApp engine has a Python/package compatibility problem.
-WAEYS_OK = False
-WAEYS_ERROR = "لم يتم تحميل WAeys بعد"
-default_connection_config = None
-init_auth_creds = None
-make_file_key_store = None
-Browsers = None
-make_socket = None
+try:
+    from WAeys.Defaults.index import default_connection_config
+    from WAeys.Utils.auth_utils import init_auth_creds
+    from WAeys.Utils.browser_utils import Browsers
+    from WAeys.Socket.socket import make_socket
+    WAEYS_OK = True
+    WAEYS_ERROR = ""
+except Exception as e:
+    WAEYS_OK = False
+    WAEYS_ERROR = str(e)
 
-def load_waeys():
-    global WAEYS_OK, WAEYS_ERROR
-    global default_connection_config, init_auth_creds, make_file_key_store, Browsers, make_socket
-    if WAEYS_OK:
-        return True
+SESSION_DIR = os.environ.get("WA_SESSION_DIR", os.path.join(os.getcwd(), "wa_session"))
+CREDS_FILE = os.path.join(SESSION_DIR, "creds.json")
+KEYS_FILE = os.path.join(SESSION_DIR, "keys.json")
+
+def _encode_auth(v):
+    if isinstance(v, bytes): return {"__bytes__": base64.b64encode(v).decode("ascii")}
+    if isinstance(v, str): return {"__str__": v}
+    if isinstance(v, dict): return {k: _encode_auth(x) for k, x in v.items()}
+    if isinstance(v, list): return [_encode_auth(x) for x in v]
+    return v
+
+def _decode_auth(v):
+    if isinstance(v, dict):
+        if "__bytes__" in v: return base64.b64decode(v["__bytes__"])
+        if "__str__" in v: return v["__str__"]
+        return {k: _decode_auth(x) for k, x in v.items()}
+    if isinstance(v, list): return [_decode_auth(x) for x in v]
+    return v
+
+def save_creds(creds):
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    tmp = CREDS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(_encode_auth(creds), f, ensure_ascii=False, indent=2, default=str)
+    os.replace(tmp, CREDS_FILE)
+
+def load_creds():
+    if not os.path.exists(CREDS_FILE): return None
     try:
-        from WAeys.Defaults.index import default_connection_config as _default_connection_config
-        from WAeys.Utils.auth_utils import init_auth_creds as _init_auth_creds, make_file_key_store as _make_file_key_store
-        from WAeys.Utils.browser_utils import Browsers as _Browsers
-        from WAeys.Socket.socket import make_socket as _make_socket
-        default_connection_config = _default_connection_config
-        init_auth_creds = _init_auth_creds
-        make_file_key_store = _make_file_key_store
-        Browsers = _Browsers
-        make_socket = _make_socket
-        WAEYS_OK = True
-        WAEYS_ERROR = ""
-        return True
-    except Exception as e:
-        WAEYS_OK = False
-        WAEYS_ERROR = str(e)
-        return False
+        with open(CREDS_FILE, "r", encoding="utf-8") as f: return _decode_auth(json.load(f))
+    except Exception: return None
+
+def make_file_key_store():
+    async def get(type_, ids):
+        all_keys = {}
+        if os.path.exists(KEYS_FILE):
+            try:
+                with open(KEYS_FILE, "r", encoding="utf-8") as f: all_keys = _decode_auth(json.load(f))
+            except Exception: all_keys = {}
+        bucket = all_keys.get(type_, {}) if isinstance(all_keys, dict) else {}
+        return {i: bucket.get(i) for i in ids if bucket.get(i) is not None}
+    async def set_keys(data):
+        existing = {}
+        if os.path.exists(KEYS_FILE):
+            try:
+                with open(KEYS_FILE, "r", encoding="utf-8") as f: existing = _decode_auth(json.load(f))
+            except Exception: existing = {}
+        for type_, entries in data.items():
+            existing.setdefault(type_, {})
+            for id_, value in entries.items():
+                if value is None: existing[type_].pop(id_, None)
+                else: existing[type_][id_] = value
+        os.makedirs(SESSION_DIR, exist_ok=True)
+        tmp = KEYS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f: json.dump(_encode_auth(existing), f, ensure_ascii=False, indent=2, default=str)
+        os.replace(tmp, KEYS_FILE)
+    async def clear():
+        if os.path.exists(KEYS_FILE): os.remove(KEYS_FILE)
+    return {"get": get, "set": set_keys, "clear": clear}
 
 APP_NAME = "KM WhatsApp Business Manager"
 DB_FILE = "km_whatsapp.db"
@@ -188,23 +226,16 @@ def send_text_sync(chat_id, text):
         return False, str(e)
 
 async def whatsapp_loop():
-    if not load_waeys():
-        wa["last_error"] = "تعذر تحميل WAeys: " + WAEYS_ERROR
-        wa["status"] = "خطأ في محرك WhatsApp"
+    if not WAEYS_OK:
+        wa["last_error"] = "WAeys غير مثبت: " + WAEYS_ERROR
         return
 
     try:
         config = default_connection_config()
-        config["auth"] = {
-            "creds": init_auth_creds(),
-            "keys": make_file_key_store()
-        }
-
-        # متصفح افتراضي مناسب للاتصال
-        try:
-            config["browser"] = Browsers.macOS("Safari")
-        except Exception:
-            pass
+        creds = load_creds() or init_auth_creds()
+        auth = {"creds": creds, "keys": make_file_key_store()}
+        config["auth"] = auth
+        config["keepAliveIntervalMs"] = 5000
 
         try:
             config["logger"].level = "warning"
@@ -282,6 +313,14 @@ async def whatsapp_loop():
             except Exception as e:
                 wa["last_error"] = "رسالة: " + str(e)
 
+        async def on_creds(update):
+            try:
+                auth["creds"].update(update or {})
+                save_creds(auth["creds"])
+            except Exception as e:
+                wa["last_error"] = "حفظ الجلسة: " + str(e)
+
+        ev.on("creds.update", lambda u: asyncio.ensure_future(on_creds(u)))
         ev.on("connection.update",
               lambda u: asyncio.ensure_future(on_connection(u)))
 
@@ -572,12 +611,8 @@ def api_send():
         return jsonify({"ok":True})
     return jsonify({"ok":False,"error":err}),500
 
-# Initialize the local database for both Gunicorn and direct Python runs.
+# Initialize before Gunicorn imports the application.
 init_db()
-
-# Railway/Gunicorn imports `main:app`, so an __main__ block would never run.
-# Start the WhatsApp worker during module loading while keeping the web UI alive
-# even if WAeys itself fails to load.
 try:
     start_whatsapp()
 except Exception as e:
@@ -587,10 +622,6 @@ if __name__ == "__main__":
     print("\n" + "="*58)
     print(APP_NAME)
     print("افتح: http://127.0.0.1:5000")
-    print("المتطلبات: pip install flask qrcode pillow waeys")
+    print("المتطلبات: pip install -r requirements.txt")
     print("="*58 + "\n")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False, threaded=True)
-
-
-# Railway/Gunicorn entry point:
-# gunicorn main:app
