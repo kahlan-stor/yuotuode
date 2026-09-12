@@ -1,25 +1,30 @@
-KM WhatsApp Manager - Railway FIXED
-===================================
+KM WhatsApp Manager - Railway FIXED v2
 
-الملفات كلها في مجلد واحد:
-- main.py
-- requirements.txt
-- runtime.txt
-- Procfile
-- README.txt
+هذا الإصدار يعالج مشكلة ظهور QR ثم فشل الاتصال مباشرة بعد مسحه.
 
-تم إصلاح مشكلة WAeys:
-النسخة 0.1.3 لا تصدّر make_file_key_store من auth_utils، لذلك أصبح مخزن الجلسة داخل main.py نفسه وفق واجهة WAeys الموثقة.
+أهم التعديلات:
+- ضبط browser إلى Browsers.macOS("Safari") مثل مثال WAeys الرسمي.
+- رفع مهلة الاتصال إلى 60 ثانية.
+- keepAlive إلى 30 ثانية.
+- تعطيل مزامنة السجل الكامل عند الربط الأول لتقليل ضغط التسجيل.
+- إضافة إعادة اتصال تلقائية إذا انهارت جلسة WebSocket أو تم تدمير Event Buffer.
+- إظهار تفاصيل lastDisconnect في لوحة الحالة.
+- الحفاظ على تخزين creds/keys محليًا.
+
+الملفات كلها داخل مجلد واحد:
+main.py
+requirements.txt
+runtime.txt
+Procfile
+README.txt
 
 Railway:
 1) ارفع الملفات إلى GitHub.
-2) اربط المستودع بخدمة Railway.
-3) أعد Deploy.
-4) افتح رابط الخدمة وانتظر ظهور QR.
-5) من WhatsApp Business اختر الأجهزة المرتبطة ثم ربط جهاز وامسح QR.
+2) اعمل Deploy جديد في Railway.
+3) افتح رابط الموقع وانتظر QR.
+4) WhatsApp Business > الأجهزة المرتبطة > ربط جهاز > امسح QR.
+5) بعد نجاح الربط ستظهر "متصل".
 
-ملاحظات:
-- runtime.txt يحدد Python 3.11.
-- الجلسة تحفظ داخل wa_session. على Railway يفضل استخدام Volume حتى لا تضيع جلسة WhatsApp عند إعادة التشغيل.
-- هذا ربط غير رسمي عبر WhatsApp Web/WAeys، وقد يخالف شروط WhatsApp وقد يؤدي إلى تقييد الحساب.
-- استخدمه لحسابك وبحجم رسائل طبيعي، وتجنب الرسائل الجماعية المزعجة.
+مهم: هذا عميل غير رسمي لـ WhatsApp Web وقد يخالف شروط WhatsApp أو يؤدي إلى تقييد الحساب. استخدمه على حسابك وعلى مسؤوليتك.
+
+يفضل إضافة Railway Volume لمسار الجلسة إذا أردت بقاء تسجيل الدخول بعد إعادة تشغيل الخدمة.

@@ -235,10 +235,20 @@ async def whatsapp_loop():
         creds = load_creds() or init_auth_creds()
         auth = {"creds": creds, "keys": make_file_key_store()}
         config["auth"] = auth
-        config["keepAliveIntervalMs"] = 5000
+        # Use the browser identity shown in WAeys' own quick-start example.
+        # This avoids inheriting a stale/default browser fingerprint on the server.
+        try:
+            config["browser"] = Browsers.macOS("Safari")
+        except Exception:
+            pass
+        config["keepAliveIntervalMs"] = 30000
+        config["connectTimeoutMs"] = 60000
+        config["syncFullHistory"] = False
+        config["markOnlineOnConnect"] = False
+        config["enableAutoSessionRecreation"] = True
 
         try:
-            config["logger"].level = "warning"
+            config["logger"].level = "info"
         except Exception:
             pass
 
@@ -252,14 +262,19 @@ async def whatsapp_loop():
                 if update.get("qr"):
                     wa["qr"] = qr_to_data_uri(update["qr"])
                     wa["status"] = "بانتظار مسح QR"
-                if update.get("connection") == "open":
+
+                connection = update.get("connection")
+                if connection == "open":
                     wa["status"] = "متصل"
                     wa["qr"] = None
                     wa["last_error"] = ""
-                elif update.get("connection") in ("close", "closed"):
-                    wa["status"] = "منقطع"
-            except Exception:
-                pass
+                elif connection in ("close", "closed"):
+                    wa["status"] = "إعادة الاتصال..."
+                    detail = update.get("lastDisconnect") or update.get("error")
+                    if detail:
+                        wa["last_error"] = "انقطع اتصال WhatsApp: " + str(detail)
+            except Exception as e:
+                wa["last_error"] = "connection.update: " + str(e)
 
         async def on_message(update):
             """
@@ -331,20 +346,36 @@ async def whatsapp_loop():
         except Exception:
             pass
 
-        await asyncio.Event().wait()
+        # Keep the process alive. If WAeys destroys the event buffer after a
+        # failed registration/connection, rebuild the socket after a short delay.
+        while True:
+            await asyncio.sleep(5)
+            if wa.get("socket") is not sock:
+                return
+            if wa.get("status") in ("منقطع", "إعادة الاتصال..."):
+                break
 
     except Exception as e:
-        wa["status"] = "خطأ"
+        wa["status"] = "إعادة الاتصال..."
         wa["last_error"] = str(e) + "\n" + traceback.format_exc()
 
 def start_whatsapp():
     if wa["started"]:
         return
-    threading.Thread(
-        target=lambda: asyncio.run(whatsapp_loop()),
-        daemon=True,
-        name="waeys-thread"
-    ).start()
+
+    def worker():
+        # A failed QR registration must not kill the Gunicorn worker.
+        while True:
+            try:
+                asyncio.run(whatsapp_loop())
+            except Exception as e:
+                wa["last_error"] = "محرك WhatsApp: " + str(e) + "\n" + traceback.format_exc()
+            wa["socket"] = None
+            wa["qr"] = None
+            wa["status"] = "إعادة الاتصال..."
+            time.sleep(5)
+
+    threading.Thread(target=worker, daemon=True, name="waeys-thread").start()
 
 # ---------------- UI ----------------
 
