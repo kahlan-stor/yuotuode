@@ -41,16 +41,38 @@ try:
 except Exception:
     qrcode = None
 
-try:
-    from WAeys.Defaults.index import default_connection_config
-    from WAeys.Utils.auth_utils import init_auth_creds, make_file_key_store
-    from WAeys.Utils.browser_utils import Browsers
-    from WAeys.Socket.socket import make_socket
-    WAEYS_OK = True
-    WAEYS_ERROR = ""
-except Exception as e:
-    WAEYS_OK = False
-    WAEYS_ERROR = str(e)
+# WAeys is loaded lazily so Gunicorn can boot the web UI even if the
+# WhatsApp engine has a Python/package compatibility problem.
+WAEYS_OK = False
+WAEYS_ERROR = "لم يتم تحميل WAeys بعد"
+default_connection_config = None
+init_auth_creds = None
+make_file_key_store = None
+Browsers = None
+make_socket = None
+
+def load_waeys():
+    global WAEYS_OK, WAEYS_ERROR
+    global default_connection_config, init_auth_creds, make_file_key_store, Browsers, make_socket
+    if WAEYS_OK:
+        return True
+    try:
+        from WAeys.Defaults.index import default_connection_config as _default_connection_config
+        from WAeys.Utils.auth_utils import init_auth_creds as _init_auth_creds, make_file_key_store as _make_file_key_store
+        from WAeys.Utils.browser_utils import Browsers as _Browsers
+        from WAeys.Socket.socket import make_socket as _make_socket
+        default_connection_config = _default_connection_config
+        init_auth_creds = _init_auth_creds
+        make_file_key_store = _make_file_key_store
+        Browsers = _Browsers
+        make_socket = _make_socket
+        WAEYS_OK = True
+        WAEYS_ERROR = ""
+        return True
+    except Exception as e:
+        WAEYS_OK = False
+        WAEYS_ERROR = str(e)
+        return False
 
 APP_NAME = "KM WhatsApp Business Manager"
 DB_FILE = "km_whatsapp.db"
@@ -166,8 +188,9 @@ def send_text_sync(chat_id, text):
         return False, str(e)
 
 async def whatsapp_loop():
-    if not WAEYS_OK:
-        wa["last_error"] = "WAeys غير مثبت: " + WAEYS_ERROR
+    if not load_waeys():
+        wa["last_error"] = "تعذر تحميل WAeys: " + WAEYS_ERROR
+        wa["status"] = "خطأ في محرك WhatsApp"
         return
 
     try:
@@ -549,9 +572,19 @@ def api_send():
         return jsonify({"ok":True})
     return jsonify({"ok":False,"error":err}),500
 
+# Initialize the local database for both Gunicorn and direct Python runs.
+init_db()
+
+# Railway/Gunicorn imports `main:app`, so an __main__ block would never run.
+# Start the WhatsApp worker during module loading while keeping the web UI alive
+# even if WAeys itself fails to load.
+try:
+    start_whatsapp()
+except Exception as e:
+    wa["last_error"] = "تعذر تشغيل محرك WhatsApp: " + str(e)
+
 if __name__ == "__main__":
-    init_db()
-    try:\n        start_whatsapp()\n    except Exception as e:\n        wa["last_error"] = "تعذر تشغيل محرك WhatsApp: " + str(e)\n    print("\n" + "="*58)
+    print("\n" + "="*58)
     print(APP_NAME)
     print("افتح: http://127.0.0.1:5000")
     print("المتطلبات: pip install flask qrcode pillow waeys")
